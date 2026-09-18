@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Assistant</title>
+  <style>
+    :root {
+      --bg: #f9f9f9;
+      --surface: #ffffff;
+      --border: #e5e5e5;
+      --text: #1a1a1a;
+      --text-muted: #888;
+      --user-bg: #1a1a1a;
+      --user-text: #ffffff;
+      --assistant-bg: #ffffff;
+      --accent: #1a1a1a;
+      --input-bg: #ffffff;
+      --radius: 16px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111;
+        --surface: #1c1c1e;
+        --border: #2c2c2e;
+        --text: #f5f5f5;
+        --text-muted: #888;
+        --user-bg: #f5f5f5;
+        --user-text: #111;
+        --assistant-bg: #1c1c1e;
+        --accent: #f5f5f5;
+        --input-bg: #1c1c1e;
+      }
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    header {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--surface);
+    }
+
+    header h1 {
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+    }
+
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .message {
+      display: flex;
+      flex-direction: column;
+      max-width: 85%;
+    }
+
+    .message.user {
+      align-self: flex-end;
+      align-items: flex-end;
+    }
+
+    .message.assistant {
+      align-self: flex-start;
+      align-items: flex-start;
+    }
+
+    .bubble {
+      padding: 10px 14px;
+      border-radius: var(--radius);
+      font-size: 15px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .message.user .bubble {
+      background: var(--user-bg);
+      color: var(--user-text);
+      border-bottom-right-radius: 4px;
+    }
+
+    .message.assistant .bubble {
+      background: var(--assistant-bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-bottom-left-radius: 4px;
+    }
+
+    .typing .bubble {
+      color: var(--text-muted);
+    }
+
+    footer {
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    form {
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+    }
+
+    textarea {
+      flex: 1;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      background: var(--input-bg);
+      color: var(--text);
+      font-size: 15px;
+      font-family: inherit;
+      resize: none;
+      outline: none;
+      max-height: 120px;
+      line-height: 1.5;
+      overflow-y: auto;
+    }
+
+    textarea:focus {
+      border-color: var(--accent);
+    }
+
+    button[type="submit"] {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: none;
+      background: var(--accent);
+      color: var(--bg);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: opacity 0.15s;
+    }
+
+    button[type="submit"]:disabled {
+      opacity: 0.3;
+      cursor: default;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="dot"></div>
+    <h1>Assistant</h1>
+  </header>
+
+  <div id="messages"></div>
+
+  <footer>
+    <form id="form">
+      <textarea
+        id="input"
+        placeholder="Message..."
+        rows="1"
+        autofocus
+      ></textarea>
+      <button type="submit" id="send-btn" aria-label="Send">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M8 1l7 7-7 7M1 8h14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </form>
+  </footer>
+
+  <script>
+    const messagesEl = document.getElementById('messages');
+    const form = document.getElementById('form');
+    const input = document.getElementById('input');
+    const sendBtn = document.getElementById('send-btn');
+
+    // Each page load is a fresh conversation
+    const convId = 'chat-' + Math.random().toString(36).slice(2, 10);
+
+    function addMessage(role, text) {
+      const div = document.createElement('div');
+      div.className = `message ${role}`;
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble';
+      bubble.textContent = text;
+      div.appendChild(bubble);
+      messagesEl.appendChild(div);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+      return div;
+    }
+
+    function setLoading(loading) {
+      sendBtn.disabled = loading;
+      input.disabled = loading;
+    }
+
+    async function sendMessage(text) {
+      addMessage('user', text);
+      const typingEl = addMessage('assistant typing', '...');
+      setLoading(true);
+
+      try {
+        // 1. Send the message
+        const res = await fetch(`/agents/assistant/${convId}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ kind: 'user', body: text }),
+        });
+        const { submissionId } = await res.json();
+
+        // 2. Poll until our submission is settled
+        let reply = null;
+        for (let i = 0; i < 60; i++) {
+          await new Promise(r => setTimeout(r, 500));
+          const poll = await fetch(`/agents/assistant/${convId}`);
+          const data = await poll.json();
+          const settled = data.settlements?.find(s => s.submissionId === submissionId && s.outcome === 'completed');
+          if (settled) {
+            const msg = data.messages?.findLast(m => m.role === 'assistant');
+            reply = msg?.parts?.map(p => p.text).join('') ?? '(no response)';
+            break;
+          }
+        }
+
+        typingEl.remove();
+        addMessage('assistant', reply ?? 'No response received.');
+      } catch (err) {
+        typingEl.remove();
+        addMessage('assistant', 'Something went wrong. Is the server running?');
+        console.error(err);
+      }
+
+      setLoading(false);
+      input.focus();
+    }
+
+    // Auto-resize textarea
+    input.addEventListener('input', () => {
+      input.style.height = 'auto';
+      input.style.height = input.scrollHeight + 'px';
+    });
+
+    // Enter sends, Shift+Enter adds newline
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        form.requestSubmit();
+      }
+    });
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const text = input.value.trim();
+      if (!text || sendBtn.disabled) return;
+      input.value = '';
+      input.style.height = 'auto';
+      sendMessage(text);
+    });
+  </script>
+</body>
+</html>
